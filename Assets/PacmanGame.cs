@@ -77,10 +77,6 @@ public class PacmanGame : MonoBehaviour
     private const int PowerPelletScore = 50;
     private const int GhostScore = 200;
     private const int StartingLives = 3;
-    private const string WallEmoji = "🧱";
-    private const string GhostEmoji = "👻";
-    private const string CandyEmoji = "🍬";
-    private const string CakeEmoji = "🍰";
 
     private readonly Dictionary<Vector2Int, GameObject> _pelletViews = new Dictionary<Vector2Int, GameObject>();
     private readonly HashSet<Vector2Int> _powerPellets = new HashSet<Vector2Int>();
@@ -103,9 +99,12 @@ public class PacmanGame : MonoBehaviour
     private Vector2Int _playerSpawnCell;
     private Vector2Int _lastPlayerCell;
 
-    private Font _emojiFont;
     private Sprite _pacmanOpenSprite;
     private Sprite _pacmanClosedSprite;
+    private Sprite _wallIconSprite;
+    private Sprite _ghostIconSprite;
+    private Sprite _candyIconSprite;
+    private Sprite _cakeIconSprite;
 
     private Transform _boardRoot;
     private Transform _actorsRoot;
@@ -114,9 +113,12 @@ public class PacmanGame : MonoBehaviour
 
     private void Awake()
     {
-        _emojiFont = CreateEmojiFont();
         _pacmanOpenSprite = CreatePacmanSprite(64, true);
         _pacmanClosedSprite = CreatePacmanSprite(64, false);
+        _wallIconSprite = CreateWallIconSprite(48);
+        _ghostIconSprite = CreateGhostIconSprite(64);
+        _candyIconSprite = CreateCandyIconSprite(48);
+        _cakeIconSprite = CreateCakeIconSprite(56);
         BuildLevel();
         SetupCamera();
     }
@@ -264,14 +266,13 @@ public class PacmanGame : MonoBehaviour
                 if (symbol == '#')
                 {
                     _maze[y, x] = '#';
-                    CreateEmojiObject(
+                    CreateSpriteObject(
                         "Wall",
                         cell,
-                        WallEmoji,
-                        108,
-                        0.09f,
+                        new Vector2(0.94f, 0.94f),
                         Color.white,
                         2,
+                        _wallIconSprite,
                         _boardRoot);
                     continue;
                 }
@@ -328,14 +329,13 @@ public class PacmanGame : MonoBehaviour
 
         for (int i = 0; i < _ghostSpawnCells.Count; i++)
         {
-            GameObject ghostView = CreateEmojiObject(
+            GameObject ghostView = CreateSpriteObject(
                 "Ghost_" + (i + 1),
                 _ghostSpawnCells[i],
-                GhostEmoji,
-                110,
-                0.09f,
+                new Vector2(0.82f, 0.82f),
                 Color.white,
                 29,
+                _ghostIconSprite,
                 _actorsRoot);
 
             GhostActor ghost = new GhostActor(
@@ -351,14 +351,13 @@ public class PacmanGame : MonoBehaviour
 
     private void CreatePellet(Vector2Int cell, bool isPowerPellet)
     {
-        GameObject pellet = CreateEmojiObject(
+        GameObject pellet = CreateSpriteObject(
             isPowerPellet ? "PowerPellet" : "Pellet",
             cell,
-            isPowerPellet ? CakeEmoji : CandyEmoji,
-            isPowerPellet ? 88 : 74,
-            isPowerPellet ? 0.075f : 0.06f,
+            isPowerPellet ? new Vector2(0.34f, 0.34f) : new Vector2(0.22f, 0.22f),
             Color.white,
             12,
+            isPowerPellet ? _cakeIconSprite : _candyIconSprite,
             _boardRoot);
 
         _pelletViews[cell] = pellet;
@@ -580,30 +579,6 @@ public class PacmanGame : MonoBehaviour
     }
 #endif
 
-    private Font CreateEmojiFont()
-    {
-        Font emojiFont = null;
-
-        try
-        {
-            emojiFont = Font.CreateDynamicFontFromOSFont(
-                new[] { "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", "Twemoji Mozilla" },
-                96);
-        }
-        catch
-        {
-            emojiFont = null;
-        }
-
-        if (emojiFont == null)
-        {
-            emojiFont = Resources.GetBuiltinResource<Font>("Arial.ttf");
-            Debug.LogWarning("Emoji OS font not found, using Arial fallback.");
-        }
-
-        return emojiFont;
-    }
-
     private Sprite CreatePacmanSprite(int size, bool openMouth)
     {
         Texture2D texture = new Texture2D(size, size, TextureFormat.ARGB32, false);
@@ -657,6 +632,172 @@ public class PacmanGame : MonoBehaviour
         return sprite;
     }
 
+    private Sprite CreateWallIconSprite(int size)
+    {
+        Texture2D texture = new Texture2D(size, size, TextureFormat.ARGB32, false);
+        texture.filterMode = FilterMode.Point;
+        texture.wrapMode = TextureWrapMode.Clamp;
+
+        Color brick = new Color(0.88f, 0.36f, 0.3f, 1f);
+        Color mortar = new Color(0.97f, 0.84f, 0.76f, 1f);
+
+        for (int y = 0; y < size; y++)
+        {
+            for (int x = 0; x < size; x++)
+            {
+                int row = y / Mathf.Max(1, size / 4);
+                int offset = (row % 2 == 0) ? 0 : size / 8;
+                bool horizontalLine = y % Mathf.Max(1, size / 4) <= 1;
+                bool verticalLine = ((x + offset) % Mathf.Max(2, size / 3)) <= 1;
+                texture.SetPixel(x, y, (horizontalLine || verticalLine) ? mortar : brick);
+            }
+        }
+
+        texture.Apply();
+        return RegisterSprite(texture, size);
+    }
+
+    private Sprite CreateGhostIconSprite(int size)
+    {
+        Texture2D texture = new Texture2D(size, size, TextureFormat.ARGB32, false);
+        texture.filterMode = FilterMode.Point;
+        texture.wrapMode = TextureWrapMode.Clamp;
+
+        float center = (size - 1) * 0.5f;
+        float radius = size * 0.34f;
+        float radiusSqr = radius * radius;
+        float bodyBottom = size * 0.22f;
+
+        for (int y = 0; y < size; y++)
+        {
+            for (int x = 0; x < size; x++)
+            {
+                float dx = x - center;
+                float dy = y - center - size * 0.08f;
+                bool inHead = dx * dx + dy * dy <= radiusSqr && y >= center * 0.75f;
+                bool inBody = x >= size * 0.18f && x <= size * 0.82f && y >= bodyBottom && y <= center * 0.92f;
+
+                bool inFringe = false;
+                if (y > bodyBottom - size * 0.06f && y < bodyBottom + size * 0.04f)
+                {
+                    float wave = Mathf.Sin((x / (float)size) * Mathf.PI * 6f);
+                    float fringeTop = bodyBottom + wave * (size * 0.04f);
+                    inFringe = y <= fringeTop;
+                }
+
+                bool inside = inHead || inBody || inFringe;
+                texture.SetPixel(x, y, inside ? Color.white : Color.clear);
+            }
+        }
+
+        texture.Apply();
+        return RegisterSprite(texture, size);
+    }
+
+    private Sprite CreateCandyIconSprite(int size)
+    {
+        Texture2D texture = new Texture2D(size, size, TextureFormat.ARGB32, false);
+        texture.filterMode = FilterMode.Point;
+        texture.wrapMode = TextureWrapMode.Clamp;
+
+        Color wrapper = new Color(1f, 0.86f, 0.28f, 1f);
+        Color centerCandy = new Color(1f, 0.44f, 0.77f, 1f);
+
+        float c = (size - 1) * 0.5f;
+        float r = size * 0.2f;
+        float rSqr = r * r;
+
+        for (int y = 0; y < size; y++)
+        {
+            for (int x = 0; x < size; x++)
+            {
+                float dx = x - c;
+                float dy = y - c;
+                bool inCenter = dx * dx + dy * dy <= rSqr;
+
+                bool leftWrap = x < size * 0.28f && Mathf.Abs(dy) < (size * 0.24f - x * 0.35f);
+                bool rightWrap = x > size * 0.72f && Mathf.Abs(dy) < (size * 0.24f - (size - 1 - x) * 0.35f);
+
+                if (inCenter)
+                {
+                    texture.SetPixel(x, y, centerCandy);
+                }
+                else if (leftWrap || rightWrap)
+                {
+                    texture.SetPixel(x, y, wrapper);
+                }
+                else
+                {
+                    texture.SetPixel(x, y, Color.clear);
+                }
+            }
+        }
+
+        texture.Apply();
+        return RegisterSprite(texture, size);
+    }
+
+    private Sprite CreateCakeIconSprite(int size)
+    {
+        Texture2D texture = new Texture2D(size, size, TextureFormat.ARGB32, false);
+        texture.filterMode = FilterMode.Point;
+        texture.wrapMode = TextureWrapMode.Clamp;
+
+        Color cake = new Color(1f, 0.84f, 0.62f, 1f);
+        Color cream = new Color(1f, 0.72f, 0.82f, 1f);
+        Color cherry = new Color(0.92f, 0.18f, 0.22f, 1f);
+
+        for (int y = 0; y < size; y++)
+        {
+            for (int x = 0; x < size; x++)
+            {
+                float nx = x / (float)(size - 1);
+                float ny = y / (float)(size - 1);
+
+                bool inBody = ny > 0.18f && ny < 0.58f && nx > 0.18f && nx < 0.82f;
+                bool inTop = ny >= 0.58f && ny < 0.73f && nx > 0.2f && nx < 0.8f;
+                bool inSideCut = ny > 0.18f && ny < 0.58f && nx >= 0.62f && nx <= 0.82f && ny > (0.18f + (nx - 0.62f) * 1.2f);
+
+                float dx = nx - 0.5f;
+                float dy = ny - 0.79f;
+                bool inCherry = dx * dx + dy * dy < 0.0085f;
+
+                if (inCherry)
+                {
+                    texture.SetPixel(x, y, cherry);
+                }
+                else if (inTop)
+                {
+                    texture.SetPixel(x, y, cream);
+                }
+                else if (inBody && !inSideCut)
+                {
+                    texture.SetPixel(x, y, cake);
+                }
+                else
+                {
+                    texture.SetPixel(x, y, Color.clear);
+                }
+            }
+        }
+
+        texture.Apply();
+        return RegisterSprite(texture, size);
+    }
+
+    private Sprite RegisterSprite(Texture2D texture, int pixelsPerUnit)
+    {
+        Sprite sprite = Sprite.Create(
+            texture,
+            new Rect(0f, 0f, texture.width, texture.height),
+            new Vector2(0.5f, 0.5f),
+            pixelsPerUnit);
+
+        _runtimeAssets.Add(texture);
+        _runtimeAssets.Add(sprite);
+        return sprite;
+    }
+
     private GameObject CreateSpriteObject(
         string objectName,
         Vector2Int cell,
@@ -678,38 +819,6 @@ public class PacmanGame : MonoBehaviour
         return go;
     }
 
-    private GameObject CreateEmojiObject(
-        string objectName,
-        Vector2Int cell,
-        string emoji,
-        int fontSize,
-        float characterSize,
-        Color color,
-        int sortingOrder,
-        Transform parent)
-    {
-        GameObject go = new GameObject(objectName);
-        go.transform.SetParent(parent, false);
-        go.transform.position = CellToWorld(cell);
-
-        TextMesh textMesh = go.AddComponent<TextMesh>();
-        textMesh.text = emoji;
-        textMesh.font = _emojiFont;
-        textMesh.fontSize = fontSize;
-        textMesh.characterSize = characterSize;
-        textMesh.anchor = TextAnchor.MiddleCenter;
-        textMesh.alignment = TextAlignment.Center;
-        textMesh.color = color;
-
-        MeshRenderer renderer = go.GetComponent<MeshRenderer>();
-        if (_emojiFont != null)
-        {
-            renderer.sharedMaterial = _emojiFont.material;
-        }
-        renderer.sortingOrder = sortingOrder;
-
-        return go;
-    }
 
     private abstract class GridActor
     {
@@ -974,7 +1083,7 @@ public class PacmanGame : MonoBehaviour
     {
         private readonly float _frightenedSpeed;
         private readonly Vector2Int _spawnCell;
-        private readonly TextMesh _label;
+        private readonly SpriteRenderer _renderer;
 
         public GhostActor(
             PacmanGame game,
@@ -986,7 +1095,7 @@ public class PacmanGame : MonoBehaviour
         {
             _frightenedSpeed = frightenedSpeed;
             _spawnCell = spawnCell;
-            _label = view.GetComponent<TextMesh>();
+            _renderer = view.GetComponent<SpriteRenderer>();
         }
 
         public void RespawnAtSpawn()
@@ -996,7 +1105,7 @@ public class PacmanGame : MonoBehaviour
 
         public void SetFrightened(bool frightened)
         {
-            _label.color = frightened ? new Color(0.7f, 0.84f, 1f) : Color.white;
+            _renderer.color = frightened ? new Color(0.55f, 0.78f, 1f) : Color.white;
         }
 
         protected override float GetMoveSpeed()
